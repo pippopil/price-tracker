@@ -5,3 +5,6 @@ __pycache__/
 *.env
 .env
 .DS_Store
+.check_ozon_response.py
+.test_wildberries.py
+.test_ozon.py
