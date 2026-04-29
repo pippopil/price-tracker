@@ -1,15 +1,36 @@
 <!DOCTYPE html>
 <html lang="ru">
-<head><meta charset="UTF-8"><title>PriceTracker</title><link rel="stylesheet" href="style.css"></head>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>📉 Price Tracker</title>
+    <link rel="stylesheet" href="style.css">
+</head>
 <body>
-  <div class="box">
-    <h1>📉 Отслеживание цен</h1>
-    <input id="uid" type="number" placeholder="Твой Telegram ID">
-    <input id="url" placeholder="Ссылка на товар (Ozon/WB/Yandex/Ali)">
-    <button onclick="track()">Добавить</button>
-    <h3>Мои товары:</h3>
-    <ul id="list"></ul>
-  </div>
-  <script src="script.js"></script>
+    <div class="container">
+        <header>
+            <h1>📉 Price Tracker</h1>
+            <p>Отслеживание цен на Ozon, Wildberries, Яндекс.Маркет, AliExpress</p>
+        </header>
+
+        <section class="add-form">
+            <h2>➕ Добавить товар</h2>
+            <input type="number" id="userId" placeholder="Ваш Telegram ID" required>
+            <input type="url" id="productUrl" placeholder="https://ozon.ru/product/..." required>
+            <button onclick="addProduct()">Добавить отслеживание</button>
+            <p class="hint">💡 Узнайте свой ID через бота @userinfobot</p>
+        </section>
+
+        <section class="products-list">
+            <h2>📦 Мои товары</h2>
+            <button onclick="loadProducts()">🔄 Обновить</button>
+            <ul id="productList"></ul>
+        </section>
+
+        <footer>
+            <p>🤖 Управление через бота: <a href="https://t.me/YOUR_BOT" target="_blank">@YOUR_BOT</a></p>
+        </footer>
+    </div>
+    <script src="script.js"></script>
 </body>
 </html>
