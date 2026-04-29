@@ -1,43 +1,31 @@
 const API = "http://localhost:8000";
-
-async function trackProduct() {
-  const url = document.getElementById("urlInput").value.trim();
-  const userId = parseInt(document.getElementById("userId").value);
-  if (!url || isNaN(userId)) return alert("Заполните все поля");
-
-  const res = await fetch(`${API}/track/`, {
+async function track() {
+  const uid = +document.getElementById("uid").value;
+  const url = document.getElementById("url").value.trim();
+  if (!uid || !url) return alert("Заполни оба поля");
+  const r = await fetch(`${API}/track/`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ url, user_id: userId }),
+    body: JSON.stringify({ url, user_id: uid }),
   });
-  const data = await res.json();
-  if (res.ok) {
-    alert("✅ Добавлено!");
-    loadProducts(userId);
-  } else {
-    alert("❌ " + data.detail);
-  }
+  const d = await r.json();
+  if (r.ok) {
+    alert("✅ Добавлено");
+    load(uid);
+  } else alert("❌ " + d.detail);
 }
-
-async function loadProducts(userId) {
-  const res = await fetch(`${API}/products/${userId}`);
-  const products = await res.json();
-  const list = document.getElementById("productList");
-  list.innerHTML = "";
-  products.forEach((p) => {
+async function load(uid) {
+  const r = await fetch(`${API}/products/${uid}`);
+  const items = await r.json();
+  const ul = document.getElementById("list");
+  ul.innerHTML = "";
+  items.forEach((i) => {
     const li = document.createElement("li");
-    li.innerHTML = `${p.marketplace} | ${p.url} <button onclick="stopTrack(${p.id})">Остановить</button>`;
-    list.appendChild(li);
+    li.innerHTML = `${i.marketplace} <button onclick="stop(${i.id})">🛑</button>`;
+    ul.appendChild(li);
   });
 }
-
-async function stopTrack(id) {
+async function stop(id) {
   await fetch(`${API}/stop/${id}`, { method: "POST" });
-  const userId = document.getElementById("userId").value;
-  loadProducts(userId);
+  load(+document.getElementById("uid").value);
 }
-
-// Автозагрузка при открытии
-document
-  .getElementById("userId")
-  .addEventListener("change", (e) => loadProducts(e.target.value));

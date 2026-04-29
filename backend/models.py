@@ -10,8 +10,8 @@ Base = declarative_base()
 class TrackedProduct(Base):
     __tablename__ = "tracked_products"
     id = Column(Integer, primary_key=True, index=True)
-    user_id = Column(Integer, index=True)  # Telegram ID
-    product_key = Column(String, index=True)  # EAN или хэш названия
+    user_id = Column(Integer, index=True)
+    product_key = Column(String, index=True)
     url = Column(String)
     marketplace = Column(String)
     current_price = Column(Float, nullable=True)

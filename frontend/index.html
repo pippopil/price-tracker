@@ -1,21 +1,15 @@
 <!DOCTYPE html>
 <html lang="ru">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>PriceTracker</title>
-    <link rel="stylesheet" href="style.css">
-</head>
+<head><meta charset="UTF-8"><title>PriceTracker</title><link rel="stylesheet" href="style.css"></head>
 <body>
-    <div class="container">
-        <h1>📉 Отслеживание цен</h1>
-        <input type="text" id="urlInput" placeholder="Вставьте ссылку на товар...">
-        <input type="number" id="userId" placeholder="Ваш Telegram ID">
-        <button onclick="trackProduct()">Добавить</button>
-        
-        <h2>Мои товары</h2>
-        <ul id="productList"></ul>
-    </div>
-    <script src="script.js"></script>
+  <div class="box">
+    <h1>📉 Отслеживание цен</h1>
+    <input id="uid" type="number" placeholder="Твой Telegram ID">
+    <input id="url" placeholder="Ссылка на товар (Ozon/WB/Yandex/Ali)">
+    <button onclick="track()">Добавить</button>
+    <h3>Мои товары:</h3>
+    <ul id="list"></ul>
+  </div>
+  <script src="script.js"></script>
 </body>
 </html>
