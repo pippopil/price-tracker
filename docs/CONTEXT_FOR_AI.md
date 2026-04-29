@@ -25,12 +25,13 @@
 6. Открыть `frontend/index.html`
 
 ## 📌 Текущий статус
-- [✅] Работает локально
-- [✅] Добавление через сайт и бот
-- [✅] Уведомления каждые 10 мин (заглушка)
-- [ ] Реальный парсинг цен
-- [ ] Переход на PostgreSQL + Celery
-- [ ] Деплой на VPS
+- [✅] Бот работает на 100% через Cloudflare Worker + requests long-polling
+- [✅] Все запросы к Bot API идут через telegram_request() (обход бага aiogram)
+- [✅] Уведомления из scheduler.py тоже используют requests + Worker
+- [ ] Реальный парсинг цен (заглушка fetch_price_mock)
+- [ ] Деплой на бесплатный VPS
 
-## 🛠️ Задачи на следующий чат
-(заполни сюда, что нужно сделать дальше)
+## 🔧 Архитектура бота
+- Нет aiogram Dispatcher / start_polling()
+- Простой цикл while True с requests.getUpdates()
+- Обработка команд через функции: handle_start, handle_list, handle_link

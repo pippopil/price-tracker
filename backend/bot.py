@@ -1,45 +1,46 @@
 import os
-import asyncio
+import time
+import logging
+import requests
 from dotenv import load_dotenv
-from aiogram import Bot, Dispatcher, types, Router
-from aiogram.filters import Command
-from aiogram.client.session.aiohttp import AiohttpSession
-from aiogram.exceptions import TelegramNetworkError
 from models import SessionLocal, TrackedProduct
 from scraper import extract_product_key
+
+# === Настройка логирования ===
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s | %(levelname)s | %(message)s"
+)
 
 load_dotenv()
 
 TOKEN = os.getenv("BOT_TOKEN")
-PROXY_URL = os.getenv("BOT_PROXY", "").strip()
+WORKER_URL = os.getenv("WORKER_URL", "").strip()
 
-def create_session_with_fallback(proxy_url: str):
-    """Создаёт сессию с прокси, но если он не работает — падает на прямое подключение"""
-    if not proxy_url:
-        print("⚠️ Прокси не указан. Подключаемся напрямую.")
-        return AiohttpSession()
-    
-    if not (proxy_url.startswith("http://") or proxy_url.startswith("socks5://")):
-        print(f"❌ Ошибка формата прокси: '{proxy_url}'")
-        print("💡 Должно начинаться с http:// или socks5://")
-        return AiohttpSession()
-    
+# === Формируем базовый URL для API ===
+if WORKER_URL:
+    API_BASE = WORKER_URL.rstrip("/") + "/"
+    logging.info(f"🌐 Worker: {API_BASE}")
+else:
+    API_BASE = "https://api.telegram.org/"
+    logging.warning(f"⚠️ Прямое подключение")
+
+# === Функция для запросов к Bot API ===
+def telegram_request(method: str, **params):
+    url = f"{API_BASE}bot{TOKEN}/{method}"
     try:
-        session = AiohttpSession(proxy=proxy_url)
-        print("🌍 Попытка подключения через прокси...")
-        return session
+        response = requests.post(url, json=params, timeout=30)
+        data = response.json()
+        return data.get("result") if data.get("ok") else None
     except Exception as e:
-        print(f"❌ Не удалось инициализировать прокси: {e}")
-        print("🔄 Используем прямое подключение")
-        return AiohttpSession()
+        logging.error(f"💥 Request error: {e}")
+        return None
 
-# Создаём сессию
-session = create_session_with_fallback(PROXY_URL)
-bot = Bot(token=TOKEN, session=session)
-dp = Dispatcher()
-router = Router()
-dp.include_router(router)
+# === Отправка сообщения пользователю ===
+def send_message(chat_id: int, text: str, parse_mode="HTML"):
+    return telegram_request("sendMessage", chat_id=chat_id, text=text, parse_mode=parse_mode)
 
+# === Логика обработки команд ===
 def get_marketplace(url: str) -> str:
     if "ozon.ru" in url: return "ozon"
     if "wildberries.ru" in url: return "wildberries"
@@ -47,56 +48,106 @@ def get_marketplace(url: str) -> str:
     if "aliexpress" in url: return "aliexpress"
     return ""
 
-@router.message(Command("start"))
-async def cmd_start(message: types.Message):
-    await message.answer("🤖 Привет! Отправь ссылку на товар с Ozon/WB/Yandex/Ali.\nКоманды: /list /stop_all")
+def handle_start(chat_id: int):
+    send_message(chat_id, "🤖 Привет! Отправь ссылку на товар с Ozon/WB/Yandex/Ali.\nКоманды: /list /stop_all")
 
-@router.message(Command("list"))
-async def cmd_list(message: types.Message):
+def handle_list(chat_id: int):
     db = SessionLocal()
     try:
-        items = db.query(TrackedProduct).filter(TrackedProduct.user_id == message.from_user.id, TrackedProduct.is_active).all()
-        if not items: return await message.answer("📭 Пусто.")
-        txt = "📦 Отслеживаем:\n" + "\n".join(f"{i}. {p.marketplace} | {p.url}" for i, p in enumerate(items, 1))
-        await message.answer(txt)
-    finally: db.close()
+        items = db.query(TrackedProduct).filter(
+            TrackedProduct.user_id == chat_id, 
+            TrackedProduct.is_active
+        ).all()
+        if not items:
+            send_message(chat_id, "📭 Пусто.")
+            return
+        txt = "📦 Отслеживаем:\n" + "\n".join(
+            f"{i}. {p.marketplace} | {p.url}" for i, p in enumerate(items, 1)
+        )
+        send_message(chat_id, txt)
+    finally:
+        db.close()
 
-@router.message(Command("stop_all"))
-async def cmd_stop(message: types.Message):
+def handle_stop_all(chat_id: int):
     db = SessionLocal()
     try:
-        db.query(TrackedProduct).filter(TrackedProduct.user_id == message.from_user.id).update({"is_active": False})
+        db.query(TrackedProduct).filter(
+            TrackedProduct.user_id == chat_id
+        ).update({"is_active": False})
         db.commit()
-        await message.answer("⛔ Все отслеживания остановлены.")
-    finally: db.close()
+        send_message(chat_id, "⛔ Все отслеживания остановлены.")
+    finally:
+        db.close()
 
-@router.message()
-async def handle_link(message: types.Message):
-    url = message.text.strip()
+def handle_link(chat_id: int, url: str):
     mp = get_marketplace(url)
-    if not mp: return await message.answer("❌ Поддерживаются только Ozon, WB, Yandex, AliExpress.")
+    if not mp:
+        send_message(chat_id, "❌ Поддерживаются только Ozon, WB, Yandex, AliExpress.")
+        return
     
     db = SessionLocal()
     try:
-        prod = TrackedProduct(user_id=message.from_user.id, product_key=extract_product_key(url), url=url, marketplace=mp)
+        prod = TrackedProduct(
+            user_id=chat_id,
+            product_key=extract_product_key(url),
+            url=url,
+            marketplace=mp
+        )
         db.add(prod)
         db.commit()
-        await message.answer(f"✅ Добавлено: {mp}\nПроверка цены каждые 10 мин.")
-    finally: db.close()
+        send_message(chat_id, f"✅ Добавлено: {mp}\nПроверка цены каждые 10 мин.")
+    finally:
+        db.close()
 
-async def main():
-    try:
-        await dp.start_polling(bot)
-    except TelegramNetworkError as e:
-        if "502" in str(e) or "Proxy" in str(e):
-            print("🔁 Сетевая ошибка прокси. Перезапускаю бот с прямым подключением...")
-            # Пересоздаём бота без прокси и перезапускаем
-            global bot, session
-            session = AiohttpSession()
-            bot = Bot(token=TOKEN, session=session)
-            await dp.start_polling(bot)
-        else:
-            raise
+# === Обработчик входящих сообщений ===
+def process_update(update: dict):
+    if "message" not in update:
+        return
+    
+    message = update["message"]
+    chat_id = message["chat"]["id"]
+    text = message.get("text", "").strip()
+    
+    if text == "/start":
+        handle_start(chat_id)
+    elif text == "/list":
+        handle_list(chat_id)
+    elif text == "/stop_all":
+        handle_stop_all(chat_id)
+    elif text.startswith("http"):
+        handle_link(chat_id, text)
+    else:
+        send_message(chat_id, "❓ Не понял. Отправь ссылку или команду /start")
+
+# === Главный цикл polling ===
+def run_polling():
+    logging.info("🚀 Запуск long-polling на requests...")
+    offset = 0
+    
+    while True:
+        try:
+            updates = telegram_request("getUpdates", offset=offset, timeout=30, allowed_updates=["message"])
+            if updates:
+                for update in updates:
+                    offset = update["update_id"] + 1
+                    process_update(update)
+            time.sleep(1)  # Не спамим запросами
+        except KeyboardInterrupt:
+            logging.info("🛑 Остановка по запросу пользователя")
+            break
+        except Exception as e:
+            logging.error(f"❌ Ошибка в цикле: {e}")
+            time.sleep(5)  # Ждём перед повтором
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    # Тестовый запрос при старте
+    me = telegram_request("getMe")
+    if me:
+        logging.info(f"✅ Бот: @{me.get('username')}")
+        print(f"✅ Подключено как @{me.get('username')}")
+    else:
+        logging.error("❌ Не удалось подключиться к Telegram")
+        exit(1)
+    
+    # Запускаем polling
+    run_polling()
